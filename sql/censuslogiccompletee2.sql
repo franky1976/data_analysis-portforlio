@@ -1,0 +1,120 @@
+CREATE  DATABASE  CENSUSDB;
+-- USE DATABASE
+USE CENSUSDB;
+
+-- STEP 1: CREATE A STAGING TABLE LIKE census
+CREATE TABLE census_staging LIKE census;
+
+-- INSERT ALL RAW DATA INTO census_staging
+INSERT INTO census_staging
+SELECT * FROM census;
+SELECT   *FROM   census;
+
+SELECT   *FROM   census_staging;
+
+-- STEP 2: CREATE STAGING2 WITH ROW_NUMBER() TO IDENTIFY DUPLICATES
+CREATE TABLE census_staging2 (
+  Person_ID VARCHAR(10),
+  Name VARCHAR(100),
+  Age INT,
+  Gender VARCHAR(10),
+  Marital_Status VARCHAR(20),
+  Education_Level VARCHAR(30),
+  Occupation VARCHAR(50),
+  Income INT,
+  Household_Size INT,
+  City VARCHAR(50),
+  State VARCHAR(50),
+  Country VARCHAR(50),
+  Ethnicity VARCHAR(30),
+  ID INT
+);
+
+SELECT   *FROM   census_staging2;
+
+-- INSERT WITH ROW_NUMBER() TO MARK DUPLICATES (KEEP FIRST)
+INSERT INTO census_staging2
+SELECT *, ROW_NUMBER() OVER (
+  PARTITION BY Person_ID
+  ORDER BY Person_ID
+) AS ID
+FROM census_staging;
+SELECT   *FROM   census_staging2;
+
+--  DELETE DUPLICATES (KEEP ID = 1)
+DELETE FROM census_staging2 
+WHERE ID > 1;
+
+-- STEP 5: FINAL CLEANUP
+ALTER TABLE census_staging2 DROP COLUMN ID;
+
+
+
+-- STEP 3: STANDARDIZE DATA (Example: TRIM NAMES, FIX CASE, ETC)
+UPDATE census_staging2 SET Name = TRIM(Name);
+UPDATE census_staging2 SET Gender = 
+  CASE 
+    WHEN LOWER(Gender) IN ('male', 'm') THEN 'Male'
+    WHEN LOWER(Gender) IN ('female', 'f') THEN 'Female'
+    ELSE 'Other'
+  END;
+
+-- STEP 4: HANDLE NULLS & INVALIDS (Example: Age bounds, Income >= 0)
+DELETE FROM census_staging2
+WHERE Age IS NULL OR Age < 0 OR Age > 120;
+
+UPDATE census_staging2
+SET Income = 0
+WHERE Income IS NULL OR Income < 0;
+
+-- Now your cleaned data is in census_staging2, you can use or copy it
+SELECT * FROM census_staging2 ;
+
+-- EDA   QUESTIONS
+-- Now your cleaned data is in census_staging2, you can use or copy it
+
+-- 1. Count total number of people
+SELECT COUNT(*) AS total_population FROM census;
+
+-- 2. Count number of males and females
+SELECT Gender, COUNT(*) AS count
+FROM census
+GROUP BY Gender;
+
+-- 3. Average age of the population
+SELECT AVG(Age) AS avg_age FROM census;
+-- 4. Count people by marital status
+SELECT Marital_Status, COUNT(*) AS count
+FROM census
+GROUP BY Marital_Status;
+
+-- 5. Average income by occupation
+
+SELECT Education_Level, COUNT(*) AS count
+FROM census
+GROUP BY Education_Level
+ORDER BY count DESC;
+
+-- 7. Maximum and minimum income in dataset
+
+SELECT MAX(Income) AS max_income, MIN(Income) AS min_income
+FROM census;
+
+-- 8. Number of households by household size
+
+SELECT Household_Size, COUNT(*) AS household_count
+FROM census
+GROUP BY Household_Size
+ORDER BY Household_Size;
+-- 9. Count people in each city
+SELECT City, COUNT(*) AS count
+FROM census
+GROUP BY City
+ORDER BY count DESC;
+
+-- 10. Count people by ethnicity
+
+SELECT Ethnicity, COUNT(*) AS count
+FROM census
+GROUP BY Ethnicity
+ORDER BY count DESC;
